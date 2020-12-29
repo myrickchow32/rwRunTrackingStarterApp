@@ -2,6 +2,10 @@ package com.rwRunTrackingApp
 
 import android.Manifest
 import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
@@ -16,7 +20,7 @@ import com.google.android.gms.maps.model.MarkerOptions
 import com.tbruyelle.rxpermissions2.RxPermissions
 import kotlinx.android.synthetic.main.activity_maps.*
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
     private lateinit var mMap: GoogleMap
 
@@ -104,9 +108,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         RxPermissions(this).request(Manifest.permission.ACTIVITY_RECOGNITION)
             .subscribe { isGranted ->
                 Log.d("TAG", "Is ACTIVITY_RECOGNITION permission granted: $isGranted")
+                if (isGranted) {
+                    setupStepCounterListener()
+                }
             }
     }
-
 
     fun endButtonClicked() {
         AlertDialog.Builder(this)
@@ -123,5 +129,23 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     fun stopTracking() {
 
+    }
+    fun setupStepCounterListener() {
+        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        stepCounterSensor?.let {
+            sensorManager.registerListener(this@MapsActivity, it, SensorManager.SENSOR_DELAY_FASTEST)
+        }
+    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        Log.d("TAG", "onAccuracyChanged: Sensor: $sensor; accuracy: $accuracy")
+    }
+
+    override fun onSensorChanged(sensorEvent: SensorEvent?) {
+        Log.d("TAG", "onSensorChanged")
+        sensorEvent ?: return
+        sensorEvent.values.firstOrNull()?.let {
+            Log.d("TAG", "Step count: $it ")
+        }
     }
 }
