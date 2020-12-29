@@ -55,6 +55,34 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         get() = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).getBoolean(KEY_IS_TRACKING, false)
         set(value) = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).edit().putBoolean(KEY_IS_TRACKING, value).apply()
 
+    val locationCallback = object: LocationCallback() {
+        override fun onLocationResult(locationResult: LocationResult?) {
+            super.onLocationResult(locationResult)
+            locationResult ?: return
+
+            locationResult.locations.forEach {
+                Log.d("TAG", "New location got: (${it.latitude}, ${it.longitude})")
+                if (lastKnownLocation == null) {
+                    lastKnownLocation = it
+                    return@forEach
+                }
+                totalDistanceTravelled = totalDistanceTravelled + it.distanceTo(lastKnownLocation)
+                lifecycleScope.launch { // coroutine on Main
+                    async(Dispatchers.IO) {
+                        try {
+                            appDatabase.trackingDao().insert(TrackingRecord(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
+                            Log.d("TAG", "Data is added")
+                        } catch (error: Exception) {
+                            error.localizedMessage
+                        }
+                    }
+                }
+            }
+            updateAllDisplayText()
+            addLocationToRoute(locationResult.locations)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
@@ -168,6 +196,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                 }
             }
         }
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback)
     }
     fun setupStepCounterListener() {
         val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -194,33 +223,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
             locationRequest.interval = 5000 // 5000ms (5s)
 
-            val locationCallback = object: LocationCallback() {
-                override fun onLocationResult(locationResult: LocationResult?) {
-                    super.onLocationResult(locationResult)
-                    locationResult ?: return
-
-                    locationResult.locations.forEach {
-                        Log.d("TAG", "New location got: (${it.latitude}, ${it.longitude})")
-                        if (lastKnownLocation == null) {
-                            lastKnownLocation = it
-                            return@forEach
-                        }
-                        totalDistanceTravelled = totalDistanceTravelled + it.distanceTo(lastKnownLocation)
-                        lifecycleScope.launch { // coroutine on Main
-                            async(Dispatchers.IO) {
-                                try {
-                                    appDatabase.trackingDao().insert(TrackingRecord(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
-                                    Log.d("TAG", "Data is added")
-                                } catch (error: Exception) {
-                                    error.localizedMessage
-                                }
-                            }
-                        }
-                    }
-                    updateAllDisplayText()
-                    addLocationToRoute(locationResult.locations)
-                }
-            }
             fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
         }
     }
