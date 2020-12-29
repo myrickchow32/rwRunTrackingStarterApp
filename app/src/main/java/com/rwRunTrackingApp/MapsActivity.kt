@@ -145,7 +145,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         Log.d("TAG", "onSensorChanged")
         sensorEvent ?: return
         sensorEvent.values.firstOrNull()?.let {
-            Log.d("TAG", "Step count: $it ")
+            if (initialStepCount == -1) {
+                initialStepCount = it.toInt()
+            }
+            val actualStepCount = it.toInt() - initialStepCount
+            Log.d("TAG", "Step count: $actualStepCount ")
+            numberOfStepTextView.text = "Step count: $actualStepCount"
         }
     }
 }
