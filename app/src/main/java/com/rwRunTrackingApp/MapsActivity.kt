@@ -1,8 +1,10 @@
 package com.rwRunTrackingApp
 
+import android.Manifest
 import android.content.Context
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AlertDialog
 
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -11,6 +13,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
+import com.tbruyelle.rxpermissions2.RxPermissions
 import kotlinx.android.synthetic.main.activity_maps.*
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -98,7 +101,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     fun startButtonClicked() {
-
+        RxPermissions(this).request(Manifest.permission.ACTIVITY_RECOGNITION)
+            .subscribe { isGranted ->
+                Log.d("TAG", "Is ACTIVITY_RECOGNITION permission granted: $isGranted")
+            }
     }
 
 
