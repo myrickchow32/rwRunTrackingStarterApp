@@ -89,6 +89,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
 
+        runWithLocationPermissionChecking {
+            mMap.isMyLocationEnabled = true
+        }
+
         // Add a marker in Hong Kong and move the camera
         val latitude = 22.3193
         val longitude = 114.1694
