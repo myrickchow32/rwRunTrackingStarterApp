@@ -153,7 +153,21 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     }
 
     fun stopTracking() {
+        lifecycleScope.launch { // coroutine on Main
+            async(Dispatchers.IO) {
+                try {
+                    val originalTrackingRecordList = appDatabase.trackingDao().getAll()
+                    Log.d("TAG", "Original number of data: ${originalTrackingRecordList.size}")
 
+                    appDatabase.trackingDao().delete()
+
+                    val newTrackingRecordList = appDatabase.trackingDao().getAll()
+                    Log.d("TAG", "New Number of data: ${newTrackingRecordList.size}")
+                } catch (error: Exception) {
+                    error.localizedMessage
+                }
+            }
+        }
     }
     fun setupStepCounterListener() {
         val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager

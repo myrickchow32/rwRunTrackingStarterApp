@@ -11,4 +11,7 @@ interface TrackingDao {
 
     @Insert
     fun insert(trackingRecord: TrackingRecord)
+
+    @Query("DELETE FROM trackingrecord")
+    fun delete()
 }
