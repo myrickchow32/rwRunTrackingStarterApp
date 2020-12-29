@@ -31,6 +31,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     private lateinit var mMap: GoogleMap
     lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     val polylineOptions = PolylineOptions()
+    var lastKnownLocation: Location? = null
 
     val KEY_SHARED_PREFERENCE = "com.rwRunTrackingApp.KEY_SHARED_PREFERENCE"
     val KEY_INITIAL_STEP_COUNT = "com.rwRunTrackingApp.KEY_CURRENT_NUMBER_OF_STEP_COUNT"
@@ -177,7 +178,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
 
                     locationResult.locations.forEach {
                         Log.d("TAG", "New location got: (${it.latitude}, ${it.longitude})")
+                        if (lastKnownLocation == null) {
+                            lastKnownLocation = it
+                            return@forEach
+                        }
+                        totalDistanceTravelled = totalDistanceTravelled + it.distanceTo(lastKnownLocation)
                     }
+                    updateAllDisplayText()
                     addLocationToRoute(locationResult.locations)
                 }
             }
@@ -206,9 +213,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             if (initialStepCount == -1) {
                 initialStepCount = it.toInt()
             }
-            val actualStepCount = it.toInt() - initialStepCount
-            Log.d("TAG", "Step count: $actualStepCount ")
-            numberOfStepTextView.text = "Step count: $actualStepCount"
+            currentNumberOfStepCount = it.toInt() - initialStepCount
+            Log.d("TAG", "Step count: $currentNumberOfStepCount ")
+            updateAllDisplayText()
         }
     }
 }
