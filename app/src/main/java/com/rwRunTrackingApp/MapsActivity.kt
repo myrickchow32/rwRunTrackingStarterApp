@@ -1,6 +1,7 @@
 package com.rwRunTrackingApp
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -8,8 +9,11 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import com.google.android.gms.location.*
 
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
@@ -23,6 +27,7 @@ import kotlinx.android.synthetic.main.activity_maps.*
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
     private lateinit var mMap: GoogleMap
+    lateinit var fusedLocationProviderClient: FusedLocationProviderClient
 
     val KEY_SHARED_PREFERENCE = "com.rwRunTrackingApp.KEY_SHARED_PREFERENCE"
     val KEY_INITIAL_STEP_COUNT = "com.rwRunTrackingApp.KEY_CURRENT_NUMBER_OF_STEP_COUNT"
@@ -46,6 +51,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
+
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
         startButton.setOnClickListener {
             isTracking = true
@@ -112,6 +119,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                     setupStepCounterListener()
                 }
             }
+        setupLocationChangeListener()
     }
 
     fun endButtonClicked() {
@@ -137,6 +145,38 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             sensorManager.registerListener(this@MapsActivity, it, SensorManager.SENSOR_DELAY_FASTEST)
         }
     }
+
+    private fun runWithLocationPermissionChecking(callback: () -> Unit) {
+        RxPermissions(this).request(Manifest.permission.ACCESS_FINE_LOCATION)
+                .subscribe { isGranted ->
+                    if (isGranted) {
+                        callback()
+                    } else {
+                        Toast.makeText(this, "Please grant Location permission", Toast.LENGTH_LONG).show()
+                    }
+                }
+    }
+    @SuppressLint("MissingPermission")
+    fun setupLocationChangeListener() {
+        runWithLocationPermissionChecking {
+            val locationRequest = LocationRequest()
+            locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            locationRequest.interval = 5000 // 5000ms (5s)
+
+            val locationCallback = object: LocationCallback() {
+                override fun onLocationResult(locationResult: LocationResult?) {
+                    super.onLocationResult(locationResult)
+                    locationResult ?: return
+
+                    locationResult.locations.forEach {
+                        Log.d("TAG", "New location got: (${it.latitude}, ${it.longitude})")
+                    }
+                }
+            }
+            fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+        }
+    }
+
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
         Log.d("TAG", "onAccuracyChanged: Sensor: $sensor; accuracy: $accuracy")
     }
