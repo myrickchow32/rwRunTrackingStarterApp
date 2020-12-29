@@ -14,6 +14,8 @@ import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.lifecycleScope
+import androidx.room.Room
 import com.google.android.gms.location.*
 
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -25,9 +27,14 @@ import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.tbruyelle.rxpermissions2.RxPermissions
 import kotlinx.android.synthetic.main.activity_maps.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import java.util.*
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
+    lateinit var appDatabase: AppDatabase
     private lateinit var mMap: GoogleMap
     lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     val polylineOptions = PolylineOptions()
@@ -51,6 +58,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
+
+        appDatabase = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "database-name").build()
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
@@ -183,6 +192,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                             return@forEach
                         }
                         totalDistanceTravelled = totalDistanceTravelled + it.distanceTo(lastKnownLocation)
+                        lifecycleScope.launch { // coroutine on Main
+                            async(Dispatchers.IO) {
+                                try {
+                                    appDatabase.trackingDao().insert(TrackingRecord(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
+                                    Log.d("TAG", "Data is added")
+                                } catch (error: Exception) {
+                                    error.localizedMessage
+                                }
+                            }
+                        }
                     }
                     updateAllDisplayText()
                     addLocationToRoute(locationResult.locations)
