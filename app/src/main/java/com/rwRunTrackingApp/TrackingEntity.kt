@@ -5,7 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity
-data class TrackingRecord(
+data class TrackingEntity(
     @PrimaryKey val timestamp: Long,
     @ColumnInfo val latitude: Double,
     @ColumnInfo val longitude: Double

@@ -6,12 +6,12 @@ import androidx.room.Query
 
 @Dao
 interface TrackingDao {
-    @Query("SELECT * FROM trackingrecord")
-    fun getAll(): List<TrackingRecord>
+    @Query("SELECT * FROM trackingentity")
+    fun getAll(): List<TrackingEntity>
 
     @Insert
-    fun insert(trackingRecord: TrackingRecord)
+    fun insert(trackingEntity: TrackingEntity)
 
-    @Query("DELETE FROM trackingrecord")
+    @Query("DELETE FROM trackingentity")
     fun delete()
 }

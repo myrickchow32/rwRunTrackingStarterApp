@@ -70,7 +70,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                 lifecycleScope.launch { // coroutine on Main
                     async(Dispatchers.IO) {
                         try {
-                            appDatabase.trackingDao().insert(TrackingRecord(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
+                            appDatabase.trackingDao().insert(TrackingEntity(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
                             Log.d("TAG", "Data is added")
                         } catch (error: Exception) {
                             error.localizedMessage
