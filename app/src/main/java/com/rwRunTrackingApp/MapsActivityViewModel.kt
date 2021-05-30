@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 
 class MapsActivityViewModel(val trackingRepository: TrackingRepository): ViewModel() {
   val allTrackingEntities: LiveData<List<TrackingEntity>> = trackingRepository.trackingEntityList.asLiveData()
+  val lastTrackingEntity: LiveData<TrackingEntity> = trackingRepository.lastTrackingEntity.asLiveData()
 
   fun insert(trackingEntity: TrackingEntity) = viewModelScope.launch {
     trackingRepository.insert(trackingEntity)

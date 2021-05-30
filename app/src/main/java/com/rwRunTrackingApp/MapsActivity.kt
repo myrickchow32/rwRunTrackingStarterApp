@@ -68,7 +68,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                 mapsActivityViewModel.insert(TrackingEntity(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
             }
             updateAllDisplayText()
-            addLocationToRoute(locationResult.locations)
         }
     }
 
@@ -80,8 +79,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
+        // Set up Fused Location Provider Client
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
+        // Set up button click events
         startButton.setOnClickListener {
             isTracking = true
             // Clear previous local data
@@ -97,9 +98,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         }
         endButton.setOnClickListener { endButtonClicked() }
 
+        // Update layouts
         updateButtonStatus()
         updateAllDisplayText()
 
+        mapsActivityViewModel.lastTrackingEntity.observe(this) {
+            Log.d("TAG_MYRICK", "Last entity timestamp: ${it.timestamp}")
+            addLocationToRoute(it)
+        }
         if (isTracking) {
             startButtonClicked()
         }
@@ -204,13 +210,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         }
     }
 
-    fun addLocationToRoute(locations: List<Location>) {
+    fun addLocationToRoute(trackingEntity: TrackingEntity) {
         mMap.clear()
-        val originalLatLngList = polylineOptions.points
-        val latLngList = locations.map {
-            LatLng(it.latitude, it.longitude)
-        }
-        originalLatLngList.addAll(latLngList)
+        val newLatLngInstance = trackingEntity.asLatLng()
+        polylineOptions.points.add(newLatLngInstance)
         mMap.addPolyline(polylineOptions)
     }
 

@@ -5,6 +5,12 @@ import androidx.lifecycle.asLiveData
 
 class TrackingRepository(private val trackingDao: TrackingDao) {
   val trackingEntityList = trackingDao.getAll()
+  val lastTrackingEntity = trackingDao.getLastTrackingEntity()
+
+
+  @Suppress("RedundantSuspendModifier")
+  @WorkerThread
+  suspend fun getLastTrackingEntity() = trackingDao.getLastTrackingEntityRecord()
 
   @Suppress("RedundantSuspendModifier")
   @WorkerThread
