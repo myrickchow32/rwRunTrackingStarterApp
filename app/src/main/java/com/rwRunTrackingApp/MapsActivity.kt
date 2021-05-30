@@ -13,9 +13,8 @@ import android.os.Bundle
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
-import androidx.lifecycle.lifecycleScope
-import androidx.room.Room
 import com.google.android.gms.location.*
 
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -23,18 +22,17 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 import com.tbruyelle.rxpermissions2.RxPermissions
 import kotlinx.android.synthetic.main.activity_maps.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 import java.util.*
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
-    lateinit var appDatabase: AppDatabase
+    private val mapsActivityViewModel: MapsActivityViewModel by viewModels {
+        MapsActivityViewModelFactory(getTrackingRepository())
+    }
+
     private lateinit var mMap: GoogleMap
     lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     val polylineOptions = PolylineOptions()
@@ -67,16 +65,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                     return@forEach
                 }
                 totalDistanceTravelled = totalDistanceTravelled + it.distanceTo(lastKnownLocation)
-                lifecycleScope.launch { // coroutine on Main
-                    async(Dispatchers.IO) {
-                        try {
-                            appDatabase.trackingDao().insert(TrackingEntity(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
-                            Log.d("TAG", "Data is added")
-                        } catch (error: Exception) {
-                            error.localizedMessage
-                        }
-                    }
-                }
+                mapsActivityViewModel.insert(TrackingEntity(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
             }
             updateAllDisplayText()
             addLocationToRoute(locationResult.locations)
@@ -86,8 +75,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_maps)
-
-        appDatabase = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "database-name").build()
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
@@ -127,6 +114,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
+    @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
 
@@ -142,6 +130,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         val zoomLevel = 9.5f
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(hongKongLatLong, zoomLevel))
     }
+
+    fun getTrackingApplicationInstance() = application as TrackingApplication
+    fun getTrackingRepository() = getTrackingApplicationInstance().trackingRepository
 
     fun updateButtonStatus() {
         startButton.isEnabled = !isTracking
@@ -181,29 +172,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     }
 
     fun stopTracking() {
-        lifecycleScope.launch { // coroutine on Main
-            async(Dispatchers.IO) {
-                try {
-                    val originalTrackingRecordList = appDatabase.trackingDao().getAll()
-                    Log.d("TAG", "Original number of data: ${originalTrackingRecordList.size}")
-
-                    appDatabase.trackingDao().delete()
-
-                    val newTrackingRecordList = appDatabase.trackingDao().getAll()
-                    Log.d("TAG", "New Number of data: ${newTrackingRecordList.size}")
-                } catch (error: Exception) {
-                    error.localizedMessage
-                }
-            }
-        }
+        mapsActivityViewModel.deleteAllTrackingEntity()
         fusedLocationProviderClient.removeLocationUpdates(locationCallback)
     }
+
     fun setupStepCounterListener() {
         val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        stepCounterSensor?.let {
-            sensorManager.registerListener(this@MapsActivity, it, SensorManager.SENSOR_DELAY_FASTEST)
-        }
+        stepCounterSensor ?: return
+        sensorManager.registerListener(this@MapsActivity, stepCounterSensor, SensorManager.SENSOR_DELAY_FASTEST)
     }
 
     private fun runWithLocationPermissionChecking(callback: () -> Unit) {
@@ -244,13 +221,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     override fun onSensorChanged(sensorEvent: SensorEvent?) {
         Log.d("TAG", "onSensorChanged")
         sensorEvent ?: return
-        sensorEvent.values.firstOrNull()?.let {
-            if (initialStepCount == -1) {
-                initialStepCount = it.toInt()
-            }
-            currentNumberOfStepCount = it.toInt() - initialStepCount
-            Log.d("TAG", "Step count: $currentNumberOfStepCount ")
-            updateAllDisplayText()
+        val firstSensorEvent = sensorEvent.values.firstOrNull() ?: return
+        if (initialStepCount == -1) {
+            initialStepCount = firstSensorEvent.toInt()
         }
+        currentNumberOfStepCount = firstSensorEvent.toInt() - initialStepCount
+        Log.d("TAG", "Step count: $currentNumberOfStepCount ")
+        updateAllDisplayText()
     }
 }
