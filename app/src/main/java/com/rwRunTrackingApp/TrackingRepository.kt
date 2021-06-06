@@ -14,6 +14,10 @@ class TrackingRepository(private val trackingDao: TrackingDao) {
 
   @Suppress("RedundantSuspendModifier")
   @WorkerThread
+  suspend fun getLastTrackingEntityRecord() = trackingDao.getLastTrackingEntityRecord()
+
+  @Suppress("RedundantSuspendModifier")
+  @WorkerThread
   suspend fun insert(trackingEntity: TrackingEntity) {
     trackingDao.insert(trackingEntity)
   }

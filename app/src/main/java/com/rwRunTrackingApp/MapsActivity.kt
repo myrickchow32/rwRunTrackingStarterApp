@@ -37,7 +37,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private val polylineOptions = PolylineOptions()
-    private var lastKnownLocation: Location? = null
 
     private val KEY_SHARED_PREFERENCE = "com.rwRunTrackingApp.KEY_SHARED_PREFERENCE"
     private val KEY_INITIAL_STEP_COUNT = "com.rwRunTrackingApp.KEY_CURRENT_NUMBER_OF_STEP_COUNT"
@@ -60,12 +59,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
             locationResult ?: return
 
             locationResult.locations.forEach {
-                Log.d("TAG", "New location got: (${it.latitude}, ${it.longitude})")
-                if (lastKnownLocation == null) {
-                    lastKnownLocation = it
-                    return@forEach
-                }
-                totalDistanceTravelled = totalDistanceTravelled + it.distanceTo(lastKnownLocation)
                 mapsActivityViewModel.insert(TrackingEntity(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
             }
             updateAllDisplayText()
@@ -103,9 +96,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         updateButtonStatus()
         updateAllDisplayText()
 
-        mapsActivityViewModel.lastTrackingEntity.observe(this) {
-            Log.d("TAG_MYRICK", "Last entity timestamp: ${it.timestamp}")
-            addLocationToRoute(it)
+        mapsActivityViewModel.lastTrackingEntity.observe(this) { lastTrackingEntity ->
+            lastTrackingEntity?.let {
+                addLocationToRoute(it)
+            }
         }
         if (isTracking) {
             startButtonClicked()

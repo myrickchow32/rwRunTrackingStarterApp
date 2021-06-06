@@ -12,7 +12,10 @@ interface TrackingDao {
     fun getAll(): Flow<List<TrackingEntity>>
 
     @Query("SELECT * FROM trackingentity ORDER BY timestamp DESC LIMIT 1")
-    fun getLastTrackingEntity(): Flow<TrackingEntity>
+    fun getLastTrackingEntity(): Flow<TrackingEntity?>
+
+    @Query("SELECT * FROM trackingentity ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLastTrackingEntityRecord(): TrackingEntity
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(trackingEntity: TrackingEntity)
