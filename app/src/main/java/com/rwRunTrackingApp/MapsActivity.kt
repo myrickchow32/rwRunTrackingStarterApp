@@ -7,7 +7,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.location.Location
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Looper
@@ -30,25 +29,19 @@ import java.util.*
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListener {
 
+    // ViewModel
     private val mapsActivityViewModel: MapsActivityViewModel by viewModels {
         MapsActivityViewModelFactory(getTrackingRepository())
     }
 
+    // Location & Map
     private lateinit var mMap: GoogleMap
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private val polylineOptions = PolylineOptions()
 
+    // SharedPreferences
     private val KEY_SHARED_PREFERENCE = "com.rwRunTrackingApp.KEY_SHARED_PREFERENCE"
-    private val KEY_INITIAL_STEP_COUNT = "com.rwRunTrackingApp.KEY_CURRENT_NUMBER_OF_STEP_COUNT"
-    private val KEY_TOTAL_DISTANCE_TRAVELLED = "com.rwRunTrackingApp.KEY_TOTAL_DISTANCE_TRAVELLED"
     private val KEY_IS_TRACKING = "com.rwRunTrackingApp.KEY_IS_TRACKING"
-    private var currentNumberOfStepCount = 0
-    private var initialStepCount: Int
-        get() = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).getInt(KEY_INITIAL_STEP_COUNT, -1)
-        set(value) = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).edit().putInt(KEY_INITIAL_STEP_COUNT, value).apply()
-    private var totalDistanceTravelled: Float
-        get() = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).getFloat(KEY_TOTAL_DISTANCE_TRAVELLED, 0f)
-        set(value) = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).edit().putFloat(KEY_TOTAL_DISTANCE_TRAVELLED, value).apply()
     private var isTracking: Boolean
         get() = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).getBoolean(KEY_IS_TRACKING, false)
         set(value) = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).edit().putBoolean(KEY_IS_TRACKING, value).apply()
@@ -56,12 +49,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     private val locationCallback = object: LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult?) {
             super.onLocationResult(locationResult)
-            locationResult ?: return
-
-            locationResult.locations.forEach {
-                mapsActivityViewModel.insert(TrackingEntity(Calendar.getInstance().timeInMillis, it.latitude, it.longitude))
+            locationResult?.locations?.forEach {
+                val trackingEntity = TrackingEntity(Calendar.getInstance().timeInMillis, it.latitude, it.longitude)
+                mapsActivityViewModel.insert(trackingEntity)
             }
-            updateAllDisplayText()
         }
     }
 
@@ -78,31 +69,44 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
 
         // Set up button click events
         startButton.setOnClickListener {
-            isTracking = true
-            // Clear previous local data
-            initialStepCount = -1
-            currentNumberOfStepCount = 0
-            totalDistanceTravelled = 0f
+            // Clear the PolylineOptions from Google Map
             mMap.clear()
 
+            // Update Start & End Button
+            isTracking = true
             updateButtonStatus()
-            updateAllDisplayText()
 
-            startButtonClicked()
+            // Reset the display text
+            updateAllDisplayText(0, 0f)
+
+            startTracking()
         }
         endButton.setOnClickListener { endButtonClicked() }
 
         // Update layouts
         updateButtonStatus()
-        updateAllDisplayText()
 
-        mapsActivityViewModel.lastTrackingEntity.observe(this) { lastTrackingEntity ->
-            lastTrackingEntity?.let {
-                addLocationToRoute(it)
+        mapsActivityViewModel.allTrackingEntities.observe(this) { allTrackingEntities ->
+            if (allTrackingEntities.isEmpty()) {
+                updateAllDisplayText(0, 0f)
             }
         }
+        mapsActivityViewModel.lastTrackingEntity.observe(this) { lastTrackingEntity ->
+            lastTrackingEntity ?: return@observe
+            addLocationToRoute(lastTrackingEntity)
+        }
+        mapsActivityViewModel.totalDistanceTravelled.observe(this) {
+            it ?: return@observe
+            Log.d("TAG_MYRICK_DB", "total distance: ${it}")
+            val stepCount = mapsActivityViewModel.currentNumberOfStepCount.value ?: 0
+            updateAllDisplayText(stepCount, it)
+        }
+        mapsActivityViewModel.currentNumberOfStepCount.observe(this) {
+            val totalDistanceTravelled = mapsActivityViewModel.totalDistanceTravelled.value ?: 0f
+            updateAllDisplayText(it, totalDistanceTravelled)
+        }
         if (isTracking) {
-            startButtonClicked()
+            startTracking()
         }
     }
 
@@ -140,15 +144,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         endButton.isEnabled = isTracking
     }
 
-    fun updateAllDisplayText() {
-        numberOfStepTextView.text = "Step count: $currentNumberOfStepCount"
+    fun updateAllDisplayText(stepCount: Int, totalDistanceTravelled: Float) {
+        numberOfStepTextView.text =  String.format("Step counte: %d", stepCount)
         totalDistanceTextView.text = String.format("Total distance: %.2fm", totalDistanceTravelled)
 
-        val averagePace = if (currentNumberOfStepCount != 0) totalDistanceTravelled / currentNumberOfStepCount.toDouble() else 0.0
+        val averagePace = if (stepCount != 0) totalDistanceTravelled / stepCount.toDouble() else 0.0
         averagePaceTextView.text = String.format("Average pace: %.2fm/ step", averagePace)
     }
 
-    fun startButtonClicked() {
+    fun startTracking() {
         RxPermissions(this).request(Manifest.permission.ACTIVITY_RECOGNITION)
             .subscribe { isGranted ->
                 Log.d("TAG", "Is ACTIVITY_RECOGNITION permission granted: $isGranted")
@@ -157,6 +161,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                 }
             }
         setupLocationChangeListener()
+    }
+
+    fun stopTracking() {
+        mapsActivityViewModel.deleteAllTrackingEntity()
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback)
     }
 
     fun endButtonClicked() {
@@ -170,11 +179,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                 }
                 .create()
                 .show()
-    }
-
-    fun stopTracking() {
-        mapsActivityViewModel.deleteAllTrackingEntity()
-        fusedLocationProviderClient.removeLocationUpdates(locationCallback)
     }
 
     fun setupStepCounterListener() {
@@ -194,6 +198,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
                     }
                 }
     }
+
     @SuppressLint("MissingPermission")
     fun setupLocationChangeListener() {
         runWithLocationPermissionChecking {
@@ -220,11 +225,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
         Log.d("TAG", "onSensorChanged")
         sensorEvent ?: return
         val firstSensorEvent = sensorEvent.values.firstOrNull() ?: return
-        if (initialStepCount == -1) {
-            initialStepCount = firstSensorEvent.toInt()
+        val isFirstStepCountRecord = mapsActivityViewModel.currentNumberOfStepCount.value == 0
+        if (isFirstStepCountRecord) {
+            mapsActivityViewModel.initialStepCount = firstSensorEvent.toInt()
+            mapsActivityViewModel.currentNumberOfStepCount.value = 1
+        } else {
+            mapsActivityViewModel.currentNumberOfStepCount.value = firstSensorEvent.toInt() - mapsActivityViewModel.initialStepCount
         }
-        currentNumberOfStepCount = firstSensorEvent.toInt() - initialStepCount
-        Log.d("TAG", "Step count: $currentNumberOfStepCount ")
-        updateAllDisplayText()
     }
 }

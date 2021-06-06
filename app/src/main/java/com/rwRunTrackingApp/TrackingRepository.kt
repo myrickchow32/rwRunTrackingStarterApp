@@ -4,13 +4,9 @@ import androidx.annotation.WorkerThread
 import androidx.lifecycle.asLiveData
 
 class TrackingRepository(private val trackingDao: TrackingDao) {
-  val trackingEntityList = trackingDao.getAll()
+  val allTrackingEntities = trackingDao.getAllTrackingEntities()
   val lastTrackingEntity = trackingDao.getLastTrackingEntity()
-
-
-  @Suppress("RedundantSuspendModifier")
-  @WorkerThread
-  suspend fun getAllTrackingEntities() = trackingDao.getAll()
+  val totalDistanceTravelled = trackingDao.getTotalDistanceTravelled()
 
   @Suppress("RedundantSuspendModifier")
   @WorkerThread
